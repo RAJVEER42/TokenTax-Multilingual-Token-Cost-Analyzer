@@ -1,34 +1,45 @@
 /**
- * TokenTax Analysis Store (Zustand)
+ * TokenTax Analysis Store (Zustand) — Phase 5: Persistent + Resilient
  *
  * Global state for the analysis workflow.
  * Components read state via selectors; they never mutate directly.
  *
  * Why Zustand instead of Redux:
  * - Zero boilerplate — no action creators, reducers, middleware wiring
- * - Works with React 18 concurrent features out of the box
+ * - Works with React 19 concurrent features out of the box
  * - Tiny bundle (~1KB) vs Redux Toolkit (~12KB)
- * - Supports selectors for fine-grained re-renders without memoization hacks
- * - For a focused app like TokenTax, Redux's ceremony adds complexity
- *   without proportional benefit
+ * - Built-in persist middleware eliminates manual localStorage boilerplate
  *
- * Why small-state architecture:
- * - Each store slice has a clear boundary (analysis, UI, etc.)
- * - Reduces cognitive load — you never wonder "where does X live?"
- * - Prevents monolith stores that couple unrelated concerns
+ * Why NO async logic in the store:
+ * - The store is a pure state container — predictable, serializable, testable
+ * - Side effects (API calls, retries, abort) live in hooks
+ * - This separation means you can snapshot, replay, and debug state transitions
+ *   without worrying about network timing or promises
+ * - Zustand's contract: set(newState) is synchronous and atomic
  *
- * Why strict typing:
- * - Prevents runtime bugs from typos in state keys
- * - Autocompletion guides developers to valid state shapes
- * - Refactors propagate errors at compile time, not in production
+ * Why localStorage persistence:
+ * - Users can reload the page and see their last analysis result
+ * - Schema is versioned — if we change the shape, old data is discarded cleanly
+ *   instead of causing runtime crashes from mismatched types
+ *
+ * Why state must remain predictable:
+ * - Every state transition is a pure function: (prevState, action) → nextState
+ * - No races, no async gaps between "intent" and "commit"
+ * - Makes time-travel debugging possible (future DevTools integration)
  */
 
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type {
   AnalyzeResponse,
   TokenAnalysis,
   FairnessResult,
 } from "@/types";
+
+// ── Schema Version ─────────────────────────────────────
+// Bump this when the persisted state shape changes.
+// The persist middleware will discard stale data automatically.
+const STORE_VERSION = 1;
 
 // ── State Interface ────────────────────────────────────
 
@@ -50,6 +61,12 @@ interface AnalysisState {
 
   /** Error message from the last failed request. */
   error: string | null;
+
+  /** Whether current result was restored from cache (API was unreachable). */
+  usingCachedFallback: boolean;
+
+  /** Number of retry attempts on the last failed request. */
+  retryCount: number;
 }
 
 // ── Actions Interface ──────────────────────────────────
@@ -61,10 +78,19 @@ interface AnalysisActions {
   setAnalysisResult: (result: AnalyzeResponse) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setUsingCachedFallback: (using: boolean) => void;
+  setRetryCount: (count: number) => void;
+  clearResults: () => void;
   reset: () => void;
 }
 
 // ── Initial State ──────────────────────────────────────
+
+/** Shape of the slice that gets persisted to localStorage. */
+type PersistedSlice = Pick<
+  AnalysisState,
+  "inputText" | "selectedLanguage" | "selectedTokenizers" | "analysisResult"
+>;
 
 const initialState: AnalysisState = {
   inputText: "",
@@ -73,24 +99,63 @@ const initialState: AnalysisState = {
   analysisResult: null,
   loading: false,
   error: null,
+  usingCachedFallback: false,
+  retryCount: 0,
 };
 
 // ── Store ──────────────────────────────────────────────
 
-export const useAnalysisStore = create<AnalysisState & AnalysisActions>(
-  (set) => ({
-    ...initialState,
+export const useAnalysisStore = create<AnalysisState & AnalysisActions>()(
+  persist(
+    (set) => ({
+      ...initialState,
 
-    setInputText: (text) => set({ inputText: text }),
-    setSelectedLanguage: (language) => set({ selectedLanguage: language }),
-    setSelectedTokenizers: (tokenizers) =>
-      set({ selectedTokenizers: tokenizers }),
-    setAnalysisResult: (result) =>
-      set({ analysisResult: result, error: null }),
-    setLoading: (loading) => set({ loading }),
-    setError: (error) => set({ error, loading: false }),
-    reset: () => set(initialState),
-  }),
+      setInputText: (text) => set({ inputText: text }),
+      setSelectedLanguage: (language) => set({ selectedLanguage: language }),
+      setSelectedTokenizers: (tokenizers) =>
+        set({ selectedTokenizers: tokenizers }),
+      setAnalysisResult: (result) =>
+        set({ analysisResult: result, error: null, usingCachedFallback: false }),
+      setLoading: (loading) => set({ loading }),
+      setError: (error) =>
+        set(error !== null ? { error, loading: false } : { error }),
+      setUsingCachedFallback: (using) => set({ usingCachedFallback: using }),
+      setRetryCount: (count) => set({ retryCount: count }),
+      clearResults: () =>
+        set({
+          analysisResult: null,
+          error: null,
+          usingCachedFallback: false,
+          retryCount: 0,
+        }),
+      reset: () => set(initialState),
+    }),
+    {
+      name: "tokentax-analysis",
+      version: STORE_VERSION,
+      // Only persist user inputs and last result — NOT loading/error (transient)
+      partialize: (state) => ({
+        inputText: state.inputText,
+        selectedLanguage: state.selectedLanguage,
+        selectedTokenizers: state.selectedTokenizers,
+        analysisResult: state.analysisResult,
+      }),
+      // If the version changes, old data is automatically migrated or discarded.
+      // For v1→v2, add migration logic here. For now, discard is safe.
+      migrate: (_persisted, version) => {
+        if (version < STORE_VERSION) {
+          // Discard stale schema — return fresh initial state
+          return {
+            inputText: "",
+            selectedLanguage: "en",
+            selectedTokenizers: null,
+            analysisResult: null,
+          } as PersistedSlice;
+        }
+        return _persisted as PersistedSlice;
+      },
+    },
+  ),
 );
 
 // ── Selectors ──────────────────────────────────────────
@@ -103,12 +168,14 @@ export const selectTokenizers = (s: AnalysisState) => s.selectedTokenizers;
 export const selectResult = (s: AnalysisState) => s.analysisResult;
 export const selectLoading = (s: AnalysisState) => s.loading;
 export const selectError = (s: AnalysisState) => s.error;
+export const selectUsingCachedFallback = (s: AnalysisState) => s.usingCachedFallback;
+export const selectRetryCount = (s: AnalysisState) => s.retryCount;
 
-/** Derived: token analysis results sorted by name. */
+/** Derived: token analysis results. */
 export const selectResults = (s: AnalysisState): TokenAnalysis[] =>
   s.analysisResult?.results ?? [];
 
-/** Derived: fairness scores sorted by name. */
+/** Derived: fairness scores. */
 export const selectFairness = (s: AnalysisState): FairnessResult[] =>
   s.analysisResult?.fairness ?? [];
 

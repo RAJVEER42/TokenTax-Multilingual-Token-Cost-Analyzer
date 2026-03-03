@@ -57,19 +57,19 @@ export default function DashboardPage() {
   // ── Queries ──────────────────────────────────────────
   const health = useQuery({
     queryKey: ["health"],
-    queryFn: healthCheck,
+    queryFn: ({ signal }) => healthCheck(signal),
     refetchInterval: 30_000,
   });
 
   const tokenizers = useQuery({
     queryKey: ["tokenizers"],
-    queryFn: fetchTokenizers,
+    queryFn: ({ signal }) => fetchTokenizers(signal),
     staleTime: 1000 * 60 * 10,
   });
 
   const languages = useQuery({
     queryKey: ["languages"],
-    queryFn: fetchLanguages,
+    queryFn: ({ signal }) => fetchLanguages(signal),
     staleTime: 1000 * 60 * 30,
   });
 
@@ -130,8 +130,8 @@ export default function DashboardPage() {
         <StatCard
           icon={Zap}
           label="Engine"
-          value="Phase 4"
-          sub="Frontend + API integration"
+          value="Phase 5"
+          sub="Frontend ↔ Backend integration"
           status="ok"
         />
       </div>

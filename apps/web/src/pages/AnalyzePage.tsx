@@ -1,18 +1,22 @@
-// filepath: /Users/rajveerbishnoi/TokenTax/apps/web/src/pages/AnalyzePage.tsx
 /**
- * AnalyzePage — Main analysis workflow page.
+ * AnalyzePage — Main analysis workflow page (Phase 5: Integrated)
  *
- * Wires together all Phase 4 components:
+ * Wires together all components with production-grade integration:
  *   TextInput → LanguageSelector → [Run Analysis] → ResultsPanel
  *   → ComparisonChart → FairnessScoreCard → GlitchTokenWarning
  *
- * State is owned by the Zustand store; this page is the orchestrator.
- * Data fetching for languages uses React Query for caching & dedup.
+ * Integration features:
+ * - Cached fallback banner when API is unreachable
+ * - Retry button on retryable failures
+ * - Debounced input prevents excessive re-renders
+ * - AbortController cancels stale requests
+ * - Loading states on all interactive elements
+ * - Results persist across page reload (Zustand persist)
  */
 
 import { useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Zap, RotateCcw } from "lucide-react";
+import { Zap, RotateCcw, RefreshCw, WifiOff, AlertTriangle } from "lucide-react";
 
 import { useAnalysisStore } from "@/store/analysisStore";
 import { useTokenAnalysis } from "@/hooks/useTokenAnalysis";
@@ -49,12 +53,18 @@ export default function AnalyzePage() {
   const reset = useAnalysisStore((s) => s.reset);
 
   // ── Hook ─────────────────────────────────────────────
-  const { analyze, loading, error } = useTokenAnalysis();
+  const {
+    analyze,
+    retry,
+    loading,
+    error,
+    usingCachedFallback,
+  } = useTokenAnalysis();
 
   // ── Languages query ──────────────────────────────────
   const { data: langData } = useQuery({
     queryKey: ["languages"],
-    queryFn: fetchLanguages,
+    queryFn: ({ signal }) => fetchLanguages(signal),
     staleTime: 1000 * 60 * 30,
   });
 
@@ -86,6 +96,10 @@ export default function AnalyzePage() {
     void analyze();
   }, [analyze]);
 
+  const handleRetry = useCallback(() => {
+    void retry();
+  }, [retry]);
+
   const handleReset = useCallback(() => {
     reset();
   }, [reset]);
@@ -103,6 +117,32 @@ export default function AnalyzePage() {
           multiple models.
         </p>
       </header>
+
+      {/* Cached fallback banner */}
+      {usingCachedFallback && (
+        <div
+          role="status"
+          className="flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3"
+        >
+          <WifiOff className="h-4 w-4 shrink-0 text-amber-400" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-300">
+              Showing cached results
+            </p>
+            <p className="text-xs text-amber-400/70 mt-0.5">
+              The API is unreachable. Displaying your last successful analysis.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="flex items-center gap-1.5 rounded-md bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-300 transition-colors hover:bg-amber-500/30"
+          >
+            <RefreshCw className="h-3 w-3" />
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Input Section */}
       <section className="glass p-6 rounded-xl space-y-5">
@@ -123,12 +163,23 @@ export default function AnalyzePage() {
         />
 
         {/* Error display */}
-        {error != null && (
+        {error != null && !usingCachedFallback && (
           <div
             role="alert"
-            className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
+            className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3"
           >
-            {error}
+            <AlertTriangle className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="flex items-center gap-1.5 rounded-md bg-red-500/20 px-3 py-1.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/30"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Retry
+            </button>
           </div>
         )}
 
@@ -144,7 +195,8 @@ export default function AnalyzePage() {
               <button
                 type="button"
                 onClick={handleReset}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-300"
+                disabled={loading}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-300 disabled:opacity-50"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Reset
