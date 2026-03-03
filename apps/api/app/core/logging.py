@@ -51,7 +51,7 @@ def configure_logging() -> None:
             getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
         ),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(sys.stdout),
+        logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
 
