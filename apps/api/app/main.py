@@ -19,11 +19,11 @@ from typing import AsyncGenerator
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse
 
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import configure_logging
+from app.core.responses import ORJSONResponse
 from app.db.session import engine
 from app.db.redis import get_redis_client
 
@@ -80,7 +80,7 @@ def create_application() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
-        default_response_class=ORJSONResponse,  # Faster JSON serialization
+        default_response_class=ORJSONResponse,  # Fast JSON via orjson
         lifespan=lifespan,
     )
 

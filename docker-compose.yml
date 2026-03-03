@@ -8,11 +8,24 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - PROJECT_NAME=TokenTax API
-      - ENVIRONMENT=development
+      - APP_ENV=development
+      - APP_NAME=TokenTax
+      - APP_VERSION=0.3.0
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+      - SECRET_KEY=dev-only-change-in-production-32-byte-hex
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/tokentax
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=tokentax
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
       - REDIS_URL=redis://redis:6379/0
-      - FRONTEND_URL=http://localhost:5173
+      - REDIS_TTL_SECONDS=3600
+      - CORS_ORIGINS_STR=http://localhost:5173,http://localhost:3000
+      - TOKENIZER_CACHE_TTL=86400
+      - DEFAULT_TOKENIZER=tiktoken
+      - TOKENIZERS_PARALLELISM=false
     depends_on:
       db:
         condition: service_healthy

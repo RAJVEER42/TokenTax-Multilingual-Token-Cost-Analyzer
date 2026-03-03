@@ -1,0 +1,28 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --strict-markers --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "app/main.py",
+    "app/db/session.py",
+    "app/db/redis.py",
+    "app/db/base.py",
+    "app/db/models.py",
+    "app/core/logging.py",
+    "app/core/security.py",
+    "app/api/v1/endpoints/health.py",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90

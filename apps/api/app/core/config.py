@@ -14,7 +14,6 @@ Design decisions:
 from functools import lru_cache
 from typing import List
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -57,14 +56,16 @@ class Settings(BaseSettings):
     REDIS_TTL_SECONDS: int = 3600
 
     # ── CORS ──────────────────────────────────────────────
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    CORS_ORIGINS_STR: str = "http://localhost:3000"
 
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v: str | List[str]) -> List[str]:
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
-        return v
+    @property
+    def CORS_ORIGINS(self) -> List[str]:
+        """Parse comma-separated origins string into a list."""
+        return [
+            origin.strip()
+            for origin in self.CORS_ORIGINS_STR.split(",")
+            if origin.strip()
+        ]
 
     # ── Worker ────────────────────────────────────────────
     WORKER_CONCURRENCY: int = 4
