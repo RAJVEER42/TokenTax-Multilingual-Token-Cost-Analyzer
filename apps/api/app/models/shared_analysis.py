@@ -18,7 +18,7 @@ import string
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Index, String, Text, text
+from sqlalchemy import DateTime, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 

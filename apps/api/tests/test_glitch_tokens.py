@@ -27,7 +27,6 @@ import pytest
 from app.schemas.analysis import DangerLevel, GlitchToken
 from app.services.glitch_token_service import (
     GlitchTokenService,
-    GlitchRegistryEntry,
     _TIKTOKEN_CL100K_GLITCHES,
     _HF_GPT2_GLITCHES,
     _SENTENCEPIECE_XLMR_GLITCHES,
@@ -316,7 +315,7 @@ class TestPerformance:
         t0 = time.perf_counter()
         for _ in large_stream:
             pass
-        baseline_ns = time.perf_counter() - t0
+        _ = time.perf_counter() - t0
 
         # Glitch scan
         t0 = time.perf_counter()

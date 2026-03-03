@@ -9,7 +9,7 @@ import pytest
 
 from app.models.shared_analysis import generate_short_id, _SHORT_ID_LENGTH, _SHORT_ID_ALPHABET
 from app.schemas.share import ShareCreateRequest, ShareCreateResponse, ShareRetrieveResponse
-from app.schemas.analysis import AnalyzeResponse, FairnessResult
+
 
 
 class TestShortIdGeneration:
