@@ -153,3 +153,39 @@ export interface AsyncState<T> {
   readonly loading: boolean;
   readonly error: string | null;
 }
+
+// ── Share Types ────────────────────────────────────────
+
+/** POST /api/v1/share request body. */
+export interface ShareCreateRequest {
+  readonly input_text: string;
+  readonly language: string;
+  readonly payload: AnalyzeResponse;
+}
+
+/** POST /api/v1/share response body. */
+export interface ShareCreateResponse {
+  readonly short_id: string;
+  readonly share_url: string;
+  readonly created_at: string;
+}
+
+/** GET /api/v1/share/:id response body. */
+export interface ShareRetrieveResponse {
+  readonly short_id: string;
+  readonly input_text: string;
+  readonly language: string;
+  readonly payload: AnalyzeResponse;
+  readonly formula_version: string;
+  readonly created_at: string;
+  readonly expires_at: string | null;
+}
+
+// ── Tutorial Types ─────────────────────────────────────
+
+/** Persisted tutorial progress for /learn page. */
+export interface TutorialProgress {
+  readonly currentStep: number;
+  readonly completedSteps: number[];
+  readonly startedAt: string;
+}

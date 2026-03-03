@@ -34,6 +34,9 @@ import type {
   LanguagesResponse,
   TokenizersResponse,
   HealthResponse,
+  ShareCreateRequest,
+  ShareCreateResponse,
+  ShareRetrieveResponse,
 } from "@/types";
 
 // ── Configuration ──────────────────────────────────────
@@ -321,4 +324,26 @@ export async function healthCheck(
     retries: 0,
     timeoutMs: 5_000,
   });
+}
+
+// ── Share API ──────────────────────────────────────────
+
+/** POST /share — Create a shareable analysis link. */
+export async function createShare(
+  payload: ShareCreateRequest,
+  signal?: AbortSignal,
+): Promise<ShareCreateResponse> {
+  return request<ShareCreateResponse>("/share", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
+/** GET /share/:id — Retrieve a shared analysis. */
+export async function getShare(
+  shortId: string,
+  signal?: AbortSignal,
+): Promise<ShareRetrieveResponse> {
+  return request<ShareRetrieveResponse>(`/share/${shortId}`, { signal });
 }

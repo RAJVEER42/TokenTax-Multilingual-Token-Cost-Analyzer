@@ -7,7 +7,7 @@ This file only wires them together — no business logic here.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import analyze, health, metadata
+from app.api.v1.endpoints import analyze, health, metadata, share
 
 api_router = APIRouter()
 
@@ -30,8 +30,13 @@ api_router.include_router(
     tags=["Metadata"],
 )
 
+# ── Share ─────────────────────────────────────────────────
+api_router.include_router(
+    share.router,
+    tags=["Share"],
+)
+
 # ── Future routers (added as phases progress) ─────────────
-# api_router.include_router(analysis.router, prefix="/analysis", tags=["Analysis"])
 # api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 # api_router.include_router(pricing.router, prefix="/pricing", tags=["Pricing"])
 # api_router.include_router(batch.router, prefix="/batch", tags=["Batch"])

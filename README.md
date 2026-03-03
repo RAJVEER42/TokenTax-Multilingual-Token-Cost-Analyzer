@@ -1,6 +1,6 @@
 # TokenTax — Multilingual Token Cost Analyzer
 
-> **Production-grade research system for measuring token inequality, BPE bias, and economic API cost disparities across languages.**
+> **Research-grade system for measuring token inequality, BPE bias, and economic API cost disparities across languages.**
 
 [![CI](https://github.com/RAJVEER42/TokenTax-Multilingual-Token-Cost-Analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/RAJVEER42/TokenTax-Multilingual-Token-Cost-Analyzer/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -9,208 +9,147 @@
 
 ---
 
-## 🎯 Project Vision
+## 🎯 Vision
 
-Modern LLMs tokenize text using Byte-Pair Encoding (BPE), which was predominantly trained on English corpora. This creates a **hidden tax** on non-English speakers:
+Modern LLMs tokenize text using Byte-Pair Encoding (BPE), predominantly trained on English corpora. This creates a **hidden tax** on non-English speakers:
 
-- A sentence in Hindi may cost **3–5× more tokens** than the same semantic content in English
+- A sentence in Tamil may cost **3–5× more tokens** than the same semantic content in English
 - Users pay more, get less context window, and experience degraded performance
 - This is a **measurable, quantifiable bias** — TokenTax makes it visible
 
-TokenTax is a research-grade system that:
-- Measures token counts per language per model
-- Calculates a **fairness score** (token efficiency relative to English baseline)
-- Computes **economic cost disparity** using live pricing snapshots
-- Tags all outputs with **EXACT or ESTIMATED** confidence labels
-- Maintains **immutable pricing snapshots** for reproducibility
+TokenTax measures, visualizes, and educates about this disparity with an interactive learning platform.
 
 ---
 
-## 🏗️ System Overview
+## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    TokenTax Platform                      │
-├──────────────┬──────────────────┬───────────────────────┤
-│   React 18   │   FastAPI (async)│   PostgreSQL 15       │
-│  TypeScript  │   Python 3.11+   │   Redis 7             │
-│  TailwindCSS │   SQLAlchemy 2   │   Alembic migrations  │
-│  Zustand     │   Pydantic v2    │   Async workers       │
-│  Recharts    │   tiktoken       │                       │
-└──────────────┴──────────────────┴───────────────────────┘
+TokenTax (monorepo)
+├── apps/
+│   ├── api/            FastAPI backend (Python 3.11+)
+│   │   ├── services/   Tokenization, fairness, glitch detection, caching
+│   │   ├── schemas/    Pydantic request/response models
+│   │   ├── models/     SQLAlchemy ORM (SharedAnalysis)
+│   │   └── api/v1/     REST endpoints (analyze, share, health, metadata)
+│   └── web/            React 19 + TypeScript 5.9 frontend
+│       ├── pages/      Dashboard, Analyze, Learn, Research, FAQ, Glitch Tokens, Share
+│       ├── components/ Visualizations, interactive demos, share cards
+│       └── lib/        Constants, transforms, tutorial data, FAQ data
+├── docs/               Technical documentation (glitch tokens, etc.)
+├── infra/              Docker, CI/CD configuration
+└── docker-compose.yml
 ```
 
-### Core Components
+**Tech Stack:**
 
-| Component | Purpose |
-|-----------|---------|
-| `apps/api` | FastAPI backend — analysis engine, REST API |
-| `apps/web` | React frontend — dashboard, visualizations |
-| `workers/` | Async batch processing workers |
-| `libs/domain` | Pure business logic (no framework coupling) |
-| `libs/adapters` | Tokenizer adapters (tiktoken, sentencepiece) |
-| `libs/metrics` | Fairness score + cost disparity calculations |
-| `libs/schemas` | Shared Pydantic schemas |
-| `infra/` | Docker, CI/CD, deployment configs |
+| Layer | Technology |
+|-------|-----------|
+| Backend | FastAPI · PostgreSQL 15 · Redis 7 · SQLAlchemy 2 · Pydantic v2 |
+| Tokenizers | tiktoken · SentencePiece · HuggingFace · Claude (heuristic) |
+| Frontend | React 19 · TypeScript 5.9 · TailwindCSS v4 · Recharts 3 · Framer Motion |
+| State | Zustand 5 (client) · React Query (server) |
+| Testing | pytest (≥90% backend) · Vitest (frontend) |
+| Build | Vite 7 · Docker Compose |
 
 ---
 
-## 🚀 Local Setup
+## 🚀 Run Locally
 
 ### Prerequisites
 
-- Docker Desktop 4.x+ (Apple Silicon: enable Rosetta for x86 images)
+- Docker Desktop 4.x+
 - Python 3.11+
 - Node.js 20+
-- Git
 
-### 1. Clone & Configure
+### Quick Start (Docker)
 
 ```bash
 git clone https://github.com/RAJVEER42/TokenTax-Multilingual-Token-Cost-Analyzer.git
 cd TokenTax-Multilingual-Token-Cost-Analyzer
 cp .env.example .env
-```
-
-### 2. Start with Docker (Recommended)
-
-```bash
 docker compose up --build
 ```
 
-Services will be available at:
-- **API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
-- **Frontend**: http://localhost:3000
-- **Health Check**: http://localhost:8000/health
+### Manual Development Setup
 
-### 3. Manual Setup (Development)
-
-**Backend:**
 ```bash
+# Backend
 cd apps/api
-python -m venv .venv
-source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
-```
+uvicorn app.main:app --reload
 
-**Frontend:**
-```bash
+# Frontend (new terminal)
 cd apps/web
-npm install
-npm run dev
+npm install && npm run dev
 ```
+
+- **Frontend**: http://localhost:5173
+- **API Docs**: http://localhost:8000/docs
+- **Health**: http://localhost:8000/api/v1/health/ping
 
 ---
 
-## 🐳 Docker Instructions
+## 📐 Fairness Methodology
+
+TokenTax computes a **fairness score** per tokenizer:
+
+```
+token_ratio    = (tokens_language / tokens_english) × 100
+fairness_score = clamp(100 − (token_ratio − 100), 0, 100)
+```
+
+- **100** = perfect parity with English
+- **0** = extreme disparity (≥2× more tokens)
+
+All results embed a `formula_version` for reproducibility. See the [Research page](http://localhost:5173/research) for full methodology, statistical approach, and citations.
+
+---
+
+## ✨ Features
+
+| Feature | Route | Description |
+|---------|-------|-------------|
+| **Dashboard** | `/dashboard` | System status, tokenizer health, quick stats |
+| **Analyzer** | `/analyze` | Multi-tokenizer analysis with fairness scores & visualizations |
+| **Interactive Tutorial** | `/learn` | 3-minute guided walkthrough with interactive demos |
+| **Research** | `/research` | Peer-review style methodology with formulas & citations |
+| **FAQ** | `/faq` | 10+ evidence-based answers with expandable accordion |
+| **Glitch Tokens** | `/glitch-tokens` | Deep dive into tokenizer vocabulary artifacts |
+| **Shareable Results** | `/share/:id` | Persistent links with PNG export & OG metadata |
+| **Pricing** | `/pricing` | Immutable, versioned pricing snapshots |
+
+### Supported Languages (16)
+
+English · Spanish · French · German · Chinese · Japanese · Korean · Arabic · Hindi · Russian · Portuguese · Turkish · Vietnamese · Thai · Swahili · Bengali
+
+---
+
+## 🔬 Determinism & Reproducibility
+
+1. **Formula Versioning** — Every result embeds `formula_version` (semver)
+2. **Tokenizer Pinning** — Exact library versions recorded per analysis
+3. **NFC Normalization** — All text normalized before tokenization
+4. **Immutable Pricing** — Date-versioned snapshots, never modified
+5. **6-decimal Rounding** — Platform-independent JSON serialization
+
+---
+
+## 🧪 Testing
 
 ```bash
-# Start all services
-docker compose up --build
+# Backend (191 tests, ≥90% coverage)
+cd apps/api && python -m pytest tests/ -v
 
-# Start in background
-docker compose up -d
-
-# View logs
-docker compose logs -f api
-
-# Stop all
-docker compose down
-
-# Full reset (removes volumes)
-docker compose down -v
+# Frontend (192 tests)
+cd apps/web && npm test
 ```
 
 ---
 
-## 🔬 Determinism Principles
+## 🤝 Contributing
 
-TokenTax enforces strict determinism:
-
-1. **Tokenizer Version Pinning** — Every analysis records the exact tokenizer version used
-2. **Immutable Snapshots** — Pricing data is stored as append-only versioned snapshots
-3. **Unicode Normalization** — All text is NFC-normalized before tokenization
-4. **Reproducible Results** — Given the same input + snapshot version, output is always identical
-5. **No Floating Point Drift** — Cost calculations use Python `Decimal` for precision
-
----
-
-## 🏷️ Confidence Labeling
-
-Every analysis result is tagged:
-
-| Label | Meaning |
-|-------|---------|
-| `EXACT` | Token count from official tokenizer, pricing from verified snapshot |
-| `ESTIMATED` | Tokenizer approximation or pricing extrapolated from older snapshot |
-
----
-
-## 📐 Versioning Philosophy
-
-- **API versions** follow `v1`, `v2` path prefixes — never breaking changes within a version
-- **Pricing snapshots** are append-only with `effective_date` — historical analyses remain valid
-- **Formula versions** are stored with each analysis record — algorithm changes don't corrupt history
-- **Tokenizer versions** are pinned per analysis — `tiktoken==0.6.0` is stored alongside results
-
----
-
-## 🤝 Contribution Guidelines
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Ensure all checks pass: `pre-commit run --all-files`
-4. Write tests for new functionality
-5. Submit a PR with a clear description
-
-### Code Standards
-- Python: Black + isort + mypy strict
-- TypeScript: ESLint + strict mode
-- Commits: Conventional Commits format
-
----
-
-## 🗺️ Roadmap
-
-### Phase 1 (Current) — Foundation
-- [x] Monorepo structure
-- [x] FastAPI + PostgreSQL + Redis
-- [x] Docker Compose
-- [x] CI/CD pipeline
-- [x] Health endpoints
-
-### Phase 2 — Core Engine
-- [ ] Tokenizer adapters (tiktoken, sentencepiece)
-- [ ] Fairness score formula
-- [ ] Cost disparity calculator
-- [ ] Pricing snapshot system
-
-### Phase 3 — Analysis API
-- [ ] Single text analysis endpoint
-- [ ] Batch analysis endpoint
-- [ ] Async workers
-- [ ] Redis caching (>80% hit rate target)
-
-### Phase 4 — Frontend Dashboard
-- [ ] Language comparison charts
-- [ ] Cost disparity visualization
-- [ ] Real-time analysis UI
-- [ ] Batch job tracking
-
-### Phase 5 — Auth & Multi-tenancy
-- [ ] JWT authentication
-- [ ] API key management
-- [ ] Usage tracking
-- [ ] Rate limiting
-
-### Phase 6 — Production
-- [ ] Kubernetes configs
-- [ ] Monitoring (Prometheus + Grafana)
-- [ ] Performance benchmarks
-- [ ] Research paper export
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines on adding languages, tokenizer adapters, and improving fairness formulas.
 
 ---
 
@@ -220,4 +159,4 @@ MIT License — see [LICENSE](LICENSE)
 
 ---
 
-*Built with engineering discipline. Designed to scale. Intended for research.*
+*Academically grounded. Statistically rigorous. Built to educate.*
