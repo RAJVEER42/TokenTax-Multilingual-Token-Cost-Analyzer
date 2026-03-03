@@ -11,7 +11,6 @@ Tests each adapter individually for:
 Single Responsibility: verify adapter contracts in isolation.
 """
 
-import pytest
 
 from app.schemas.tokenizer import ConfidenceLevel
 from app.services.tokenizers.tiktoken_adapter import TikTokenAdapter

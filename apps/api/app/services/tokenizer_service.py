@@ -24,7 +24,7 @@ import unicodedata
 import structlog
 
 from app.core.constants import UNICODE_NORMALIZATION_FORM
-from app.schemas.tokenizer import ConfidenceLevel, TokenAnalysis
+from app.schemas.tokenizer import TokenAnalysis
 from app.schemas.analysis import TokenizerError
 from app.services.cache_service import CacheService
 from app.services.tokenizers import (

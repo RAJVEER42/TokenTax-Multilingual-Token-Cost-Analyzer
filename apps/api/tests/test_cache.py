@@ -14,7 +14,6 @@ Single Responsibility: verify cache key logic and service contract.
 import hashlib
 import unicodedata
 
-import pytest
 
 from app.core.constants import UNICODE_NORMALIZATION_FORM
 from app.services.cache_service import CacheService, _hash_text, _normalize_text

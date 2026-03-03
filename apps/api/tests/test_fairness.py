@@ -12,7 +12,6 @@ Tests the fairness scoring algorithm for:
 Single Responsibility: verify fairness math in isolation.
 """
 
-import pytest
 
 from app.core.constants import (
     ENGLISH_BASELINE_RATIO,
