@@ -1,6 +1,15 @@
+/*
+ * TokenTax Global Styles
+ *
+ * Imports design tokens, Tailwind, and establishes base layer rules.
+ * This file is the single CSS entry point for the application.
+ */
+
+@import "./design-tokens.css";
 @import "tailwindcss";
 
 @theme {
+  /* Map design tokens into Tailwind's theme system */
   --color-brand-50: #f0f4ff;
   --color-brand-100: #e0e9ff;
   --color-brand-200: #c7d7fe;
@@ -19,47 +28,70 @@
   --color-surface-900: #0f172a;
   --color-surface-950: #080d1a;
 
+  /* Fairness score colors — used by FairnessScoreCard */
+  --color-fairness-excellent: #059669;
+  --color-fairness-good: #10b981;
+  --color-fairness-moderate: #f59e0b;
+  --color-fairness-poor: #ef4444;
+  --color-fairness-severe: #dc2626;
+
   --font-sans: "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-mono: "Space Mono", "JetBrains Mono", "Fira Code", monospace;
 }
 
 @layer base {
-  *, *::before, *::after { box-sizing: border-box; }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 
   html {
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     scroll-behavior: smooth;
   }
 
   body {
     @apply bg-slate-950 text-slate-100;
     min-height: 100dvh;
-    font-family: "Inter", system-ui, sans-serif;
+    font-family: var(--font-body);
   }
 
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: #0f172a; }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 9999px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-bg-dark);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
 }
 
 @layer utilities {
   .glass {
     backdrop-filter: blur(12px);
     background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--color-border);
   }
 
   .glass-hover {
     backdrop-filter: blur(12px);
     background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    transition: all 0.2s;
+    border: 1px solid var(--color-border);
+    transition: all var(--transition-base);
   }
 
   .glass-hover:hover {
     background: rgba(255, 255, 255, 0.07);
-    border-color: rgba(255, 255, 255, 0.14);
+    border-color: var(--color-border-hover);
   }
 
   .gradient-text {
@@ -71,5 +103,9 @@
 
   .glow-brand {
     box-shadow: 0 0 40px rgba(99, 102, 241, 0.2);
+  }
+
+  .font-display {
+    font-family: var(--font-display);
   }
 }
