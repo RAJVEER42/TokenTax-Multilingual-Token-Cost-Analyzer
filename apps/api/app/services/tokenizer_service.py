@@ -17,6 +17,8 @@ Design decisions:
 - Results are sorted by adapter name for deterministic JSON output.
 - Claude adapter receives language hint for its heuristic; all others
   ignore it (they're language-agnostic at the BPE level).
+- Token IDs are collected opportunistically (via encode_to_ids) for
+  downstream glitch detection — no re-encoding required.
 """
 
 import unicodedata
@@ -112,17 +114,22 @@ class TokenizerService:
         text: str,
         language: str,
         tokenizer_names: list[str] | None = None,
-    ) -> tuple[list[TokenAnalysis], list[TokenizerError]]:
+    ) -> tuple[list[TokenAnalysis], list[TokenizerError], dict[str, tuple[list[int], str]]]:
         """
         Tokenize text across multiple (or all) adapters.
 
         Returns:
-            (results, errors) — both lists sorted by adapter name.
+            (results, errors, token_id_map)
+            - results / errors: both sorted by adapter name.
+            - token_id_map: {adapter_name: (token_ids, version)} for
+              adapters that expose raw token IDs.  Used by downstream
+              glitch detection (no re-encoding required).
 
         Behavior:
         - Applies NFC normalization once.
         - Checks cache before running each adapter.
         - Stores results in cache after computation.
+        - Collects token IDs via encode_to_ids() where supported.
         - A single adapter failure is captured in `errors`; other
           adapters continue processing.
         """
@@ -130,6 +137,7 @@ class TokenizerService:
         adapters = self._resolve_adapters(tokenizer_names)
         results: list[TokenAnalysis] = []
         errors: list[TokenizerError] = []
+        token_id_map: dict[str, tuple[list[int], str]] = {}
 
         for adapter in adapters:
             try:
@@ -137,6 +145,8 @@ class TokenizerService:
                 cached = await self._try_cache_get(adapter, normalized)
                 if cached is not None:
                     results.append(cached)
+                    # Still collect token IDs for glitch detection on cache hit
+                    self._collect_token_ids(adapter, normalized, token_id_map)
                     continue
 
                 analysis = self.analyze(normalized, language, adapter)
@@ -149,6 +159,8 @@ class TokenizerService:
                 else:
                     results.append(analysis)
                     await self._try_cache_set(adapter, normalized, analysis)
+                    # Collect token IDs for glitch detection
+                    self._collect_token_ids(adapter, normalized, token_id_map)
 
             except Exception as e:
                 logger.error(
@@ -164,7 +176,28 @@ class TokenizerService:
         # Sort for deterministic output ordering
         results.sort(key=lambda r: r.tokenizer_name)
         errors.sort(key=lambda e: e.tokenizer_name)
-        return results, errors
+        return results, errors, token_id_map
+
+    @staticmethod
+    def _collect_token_ids(
+        adapter: TokenizerAdapter,
+        text: str,
+        token_id_map: dict[str, tuple[list[int], str]],
+    ) -> None:
+        """
+        Opportunistically collect raw token IDs from an adapter.
+        Adapters that don't support encode_to_ids() are silently skipped.
+        """
+        try:
+            ids = adapter.encode_to_ids(text)
+            if ids is not None:
+                token_id_map[adapter.name] = (ids, adapter.version)
+        except Exception as e:
+            logger.warning(
+                "tokenizer.encode_to_ids_error",
+                adapter=adapter.name,
+                error=str(e),
+            )
 
     def _resolve_adapters(
         self, names: list[str] | None

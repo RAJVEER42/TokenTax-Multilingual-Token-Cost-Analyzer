@@ -26,10 +26,12 @@ from app.schemas.analysis import (
     AnalyzeRequest,
     AnalyzeResponse,
     FairnessResult,
+    GlitchToken,
 )
 from app.schemas.tokenizer import ConfidenceLevel
 from app.services.cache_service import CacheService
 from app.services.fairness_service import FairnessService
+from app.services.glitch_token_service import GlitchTokenService
 from app.services.tokenizer_service import TokenizerService
 
 logger = structlog.get_logger(__name__)
@@ -84,9 +86,10 @@ async def analyze_text(request: AnalyzeRequest) -> ORJSONResponse:
     cache_service = CacheService()
     tokenizer_service = TokenizerService(cache_service=cache_service)
     fairness_service = FairnessService()
+    glitch_service = GlitchTokenService()
 
     # Step 1: Tokenize across all requested adapters
-    results, errors = await tokenizer_service.batch_analyze(
+    results, errors, token_id_map = await tokenizer_service.batch_analyze(
         text=request.text,
         language=request.language,
         tokenizer_names=request.tokenizers,
@@ -104,7 +107,7 @@ async def analyze_text(request: AnalyzeRequest) -> ORJSONResponse:
             ))
     else:
         # Run English baseline tokenization for comparison
-        en_results, _ = await tokenizer_service.batch_analyze(
+        en_results, _, _ = await tokenizer_service.batch_analyze(
             text=request.text,
             language="en",
             tokenizer_names=request.tokenizers,
@@ -114,7 +117,12 @@ async def analyze_text(request: AnalyzeRequest) -> ORJSONResponse:
             english_results=en_results,
         )
 
-    # Step 3: Build warnings
+    # Step 3: Detect glitch tokens (reuses already-encoded IDs, no re-encoding)
+    glitches: list[GlitchToken] = glitch_service.detect_glitches_batch(
+        token_id_map
+    )
+
+    # Step 4: Build warnings
     warnings = _build_warnings(results, errors)
 
     fairness_results.sort(key=lambda f: f.tokenizer_name)
@@ -124,6 +132,7 @@ async def analyze_text(request: AnalyzeRequest) -> ORJSONResponse:
         language=request.language,
         results=results,
         fairness=fairness_results,
+        glitches=glitches,
         errors=errors,
         warnings=warnings,
     )

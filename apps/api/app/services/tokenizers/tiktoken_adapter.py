@@ -76,3 +76,19 @@ class TikTokenAdapter:
                 text_length=len(text),
             )
             return -1
+
+    def encode_to_ids(self, text: str) -> list[int] | None:
+        """
+        Return raw token IDs for glitch detection.
+        Uses the same encoding path as tokenize() for consistency.
+        """
+        try:
+            encoding = self._get_encoding()
+            return encoding.encode(text, disallowed_special=())
+        except Exception as e:
+            logger.error(
+                "tokenizer.tiktoken.encode_to_ids_error",
+                error=str(e),
+                text_length=len(text),
+            )
+            return None

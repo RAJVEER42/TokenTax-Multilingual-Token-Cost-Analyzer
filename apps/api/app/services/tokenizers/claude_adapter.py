@@ -106,3 +106,10 @@ class ClaudeEstimateAdapter:
                 text_length=len(text),
             )
             return -1
+
+    def encode_to_ids(self, text: str) -> list[int] | None:
+        """
+        Claude uses a heuristic estimator — no real token IDs available.
+        Returns None to signal that glitch detection is not applicable.
+        """
+        return None

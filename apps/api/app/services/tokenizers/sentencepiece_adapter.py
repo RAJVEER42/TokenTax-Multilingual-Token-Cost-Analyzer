@@ -110,3 +110,21 @@ class SentencePieceAdapter:
                 text_length=len(text),
             )
             return -1
+
+    def encode_to_ids(self, text: str) -> list[int] | None:
+        """
+        Return raw token IDs for glitch detection.
+        Uses SentencePiece EncodeAsIds for consistency with tokenize().
+        """
+        try:
+            processor = self._load_model()
+            if processor is None:
+                return None
+            return processor.EncodeAsIds(text)
+        except Exception as e:
+            logger.error(
+                "tokenizer.sentencepiece.encode_to_ids_error",
+                error=str(e),
+                text_length=len(text),
+            )
+            return None

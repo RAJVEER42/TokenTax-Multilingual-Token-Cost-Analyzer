@@ -103,3 +103,21 @@ class HuggingFaceGPT2Adapter:
                 text_length=len(text),
             )
             return -1
+
+    def encode_to_ids(self, text: str) -> list[int] | None:
+        """
+        Return raw token IDs for glitch detection.
+        Uses same encode path as tokenize() for consistency.
+        """
+        try:
+            tokenizer = self._load_tokenizer()
+            if tokenizer is None:
+                return None
+            return tokenizer.encode(text, add_special_tokens=False)
+        except Exception as e:
+            logger.error(
+                "tokenizer.huggingface_gpt2.encode_to_ids_error",
+                error=str(e),
+                text_length=len(text),
+            )
+            return None

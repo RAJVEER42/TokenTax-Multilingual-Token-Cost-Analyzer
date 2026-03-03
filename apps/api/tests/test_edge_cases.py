@@ -165,7 +165,7 @@ class TestTokenizerServiceErrorPaths:
     @pytest.mark.asyncio
     async def test_batch_with_unknown_names_returns_empty(self):
         """All unknown names → no results, no errors (just warnings)."""
-        results, errors = await self.service.batch_analyze(
+        results, errors, _ = await self.service.batch_analyze(
             text="hello",
             language="en",
             tokenizer_names=["fake1", "fake2"],
@@ -189,11 +189,14 @@ class TestTokenizerServiceErrorPaths:
             def tokenize(self, text):
                 raise RuntimeError("Boom!")
 
+            def encode_to_ids(self, text):
+                return None
+
         with patch(
             "app.services.tokenizer_service.get_all_adapters",
             return_value=[BrokenAdapter()],
         ):
-            results, errors = await service.batch_analyze(
+            results, errors, _ = await service.batch_analyze(
                 text="hello", language="en", tokenizer_names=None,
             )
         assert len(errors) == 1

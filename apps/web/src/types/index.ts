@@ -16,6 +16,9 @@
 /** Whether a tokenizer count is exact or heuristic-estimated. */
 export type ConfidenceLevel = "EXACT" | "ESTIMATED";
 
+/** Severity classification for detected glitch tokens. */
+export type DangerLevel = "LOW" | "MEDIUM" | "HIGH";
+
 // ── Core Domain Models ─────────────────────────────────
 
 /** Result of tokenizing a single text with a single tokenizer. */
@@ -44,6 +47,23 @@ export interface TokenizerError {
   readonly error: string;
 }
 
+/**
+ * A detected glitch token occurrence.
+ *
+ * Glitch tokens are tokenizer artefacts that can cause unexpected model
+ * behaviour.  This is for *educational* display — detection ≠ vulnerability.
+ */
+export interface GlitchToken {
+  readonly token_id: number;
+  readonly token_text: string;
+  readonly tokenizer_name: string;
+  readonly tokenizer_version: string;
+  readonly danger_level: DangerLevel;
+  readonly effect: string;
+  readonly reference: string;
+  readonly positions: number[];
+}
+
 // ── API Request / Response ─────────────────────────────
 
 /** POST /api/v1/analyze request body. */
@@ -59,6 +79,7 @@ export interface AnalyzeResponse {
   readonly language: string;
   readonly results: TokenAnalysis[];
   readonly fairness: FairnessResult[];
+  readonly glitches: GlitchToken[];
   readonly errors: TokenizerError[];
   readonly warnings: string[];
   readonly formula_version: string;

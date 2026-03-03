@@ -36,6 +36,7 @@ const mockResponse: AnalyzeResponse = {
     },
   ],
   fairness: [],
+  glitches: [],
   errors: [],
   warnings: [],
   formula_version: "1.0",

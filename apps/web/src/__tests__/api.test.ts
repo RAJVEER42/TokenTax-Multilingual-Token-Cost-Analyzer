@@ -33,6 +33,7 @@ const mockAnalyzeResponse: AnalyzeResponse = {
   language: "en",
   results: [],
   fairness: [],
+  glitches: [],
   errors: [],
   warnings: [],
   formula_version: "1.0",

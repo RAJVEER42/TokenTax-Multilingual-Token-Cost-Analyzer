@@ -130,8 +130,8 @@ export default function DashboardPage() {
         <StatCard
           icon={Zap}
           label="Engine"
-          value="Phase 6"
-          sub="Visualization &amp; Data Presentation"
+          value="Phase 7"
+          sub="Glitch Token Detection"
           status="ok"
         />
       </div>

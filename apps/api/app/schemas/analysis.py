@@ -9,9 +9,11 @@ Design decisions:
 - AnalyzeResponse aggregates per-tokenizer results + fairness scores.
 - FairnessResult is a standalone model so fairness math can evolve
   independently of tokenization output shapes.
+- GlitchToken captures detected tokenizer pathologies for educational display.
 - All responses embed formula_version for reproducibility auditing.
 """
 
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -21,6 +23,62 @@ from app.core.constants import (
     SUPPORTED_LANGUAGES,
 )
 from app.schemas.tokenizer import TokenAnalysis
+
+
+class DangerLevel(str, Enum):
+    """
+    Severity classification for detected glitch tokens.
+
+    LOW    — cosmetic oddity; token decodes to unusual whitespace or
+             invisible characters. No functional impact.
+    MEDIUM — token may cause unexpected model behaviour in edge cases
+             (e.g. anomalous logprobs, prompt-injection surface).
+    HIGH   — token is known to trigger reproducible model pathologies
+             such as evasion of content filters or garbled output.
+
+    These levels are for *educational* categorization only.
+    Detection ≠ vulnerability; see docs/glitch_tokens.md.
+    """
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class GlitchToken(BaseModel):
+    """
+    A single detected glitch token occurrence.
+
+    Glitch tokens are tokenizer artefacts that can cause unexpected
+    model behaviour.  This model captures occurrence metadata for
+    educational display in the UI.
+
+    Frozen after creation — detection results are deterministic artefacts.
+    """
+    token_id: int = Field(..., description="Numeric token ID in the vocabulary")
+    token_text: str = Field(
+        ..., description="Decoded text representation of the token"
+    )
+    tokenizer_name: str = Field(
+        ..., description="Which tokenizer's vocabulary contains this token"
+    )
+    tokenizer_version: str = Field(
+        ..., description="Exact version of the tokenizer"
+    )
+    danger_level: DangerLevel = Field(
+        ..., description="Severity classification (LOW / MEDIUM / HIGH)"
+    )
+    effect: str = Field(
+        ..., description="Brief description of the observed pathological effect"
+    )
+    reference: str = Field(
+        default="", description="URL or citation for further reading"
+    )
+    positions: list[int] = Field(
+        default_factory=list,
+        description="0-based indices in the token ID sequence where this token appears",
+    )
+
+    model_config = {"frozen": True}
 
 
 class AnalyzeRequest(BaseModel):
@@ -89,6 +147,10 @@ class AnalyzeResponse(BaseModel):
     fairness: list[FairnessResult] = Field(
         default_factory=list,
         description="Per-tokenizer fairness scores",
+    )
+    glitches: list[GlitchToken] = Field(
+        default_factory=list,
+        description="Detected glitch token occurrences (educational, non-alarmist)",
     )
     errors: list[TokenizerError] = Field(
         default_factory=list,

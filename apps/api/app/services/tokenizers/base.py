@@ -9,6 +9,9 @@ Design decisions:
   import or inherit from a shared base — they just need to match the shape.
 - Each adapter self-reports its name, version, and confidence level.
 - tokenize() returns raw token count; the service layer builds TokenAnalysis.
+- encode_to_ids() returns the actual token ID list (or None if unsupported).
+  This is used by GlitchTokenService for O(n) glitch scanning without
+  re-encoding.  Adapters that cannot expose IDs return None.
 - All adapters must be deterministic for the same (text, version) pair.
 """
 
@@ -58,5 +61,18 @@ class TokenizerAdapter(Protocol):
         Precondition: `text` is already NFC-normalized.
         Must be deterministic: same text → same count.
         Must not raise — return -1 on internal failure (caller handles).
+        """
+        ...
+
+    def encode_to_ids(self, text: str) -> list[int] | None:
+        """
+        Return the actual token ID list for `text`, or None if unsupported.
+
+        Used by GlitchTokenService for O(n) scanning without re-encoding.
+        Adapters that cannot expose raw token IDs (e.g. heuristic estimators)
+        should return None.
+
+        Precondition: `text` is already NFC-normalized.
+        Must not raise — return None on internal failure.
         """
         ...

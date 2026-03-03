@@ -84,7 +84,7 @@ class TestBatchAnalysis:
     @pytest.mark.asyncio
     async def test_batch_returns_results_for_available_adapters(self):
         # Use only tiktoken and claude (always available)
-        results, errors = await self.service.batch_analyze(
+        results, errors, _ = await self.service.batch_analyze(
             text=GOLDEN_ENGLISH_TEXT,
             language="en",
             tokenizer_names=["tiktoken_cl100k", "claude_estimate"],
@@ -95,7 +95,7 @@ class TestBatchAnalysis:
 
     @pytest.mark.asyncio
     async def test_batch_deterministic_ordering(self):
-        results, _ = await self.service.batch_analyze(
+        results, _, _ = await self.service.batch_analyze(
             text=GOLDEN_ENGLISH_TEXT,
             language="en",
             tokenizer_names=["claude_estimate", "tiktoken_cl100k"],
@@ -106,7 +106,7 @@ class TestBatchAnalysis:
     @pytest.mark.asyncio
     async def test_batch_partial_failure_does_not_crash(self):
         """Unknown tokenizer name is skipped, not crashed."""
-        results, errors = await self.service.batch_analyze(
+        results, errors, _ = await self.service.batch_analyze(
             text=GOLDEN_ENGLISH_TEXT,
             language="en",
             tokenizer_names=["tiktoken_cl100k", "nonexistent_tokenizer"],
@@ -119,7 +119,7 @@ class TestBatchAnalysis:
     @pytest.mark.asyncio
     async def test_batch_all_adapters(self):
         """Calling with None uses all registered adapters."""
-        results, errors = await self.service.batch_analyze(
+        results, errors, _ = await self.service.batch_analyze(
             text=GOLDEN_ENGLISH_TEXT,
             language="en",
             tokenizer_names=None,
@@ -131,12 +131,12 @@ class TestBatchAnalysis:
 
     @pytest.mark.asyncio
     async def test_batch_determinism_across_runs(self):
-        r1, _ = await self.service.batch_analyze(
+        r1, _, _ = await self.service.batch_analyze(
             text=GOLDEN_ENGLISH_TEXT,
             language="en",
             tokenizer_names=["tiktoken_cl100k"],
         )
-        r2, _ = await self.service.batch_analyze(
+        r2, _, _ = await self.service.batch_analyze(
             text=GOLDEN_ENGLISH_TEXT,
             language="en",
             tokenizer_names=["tiktoken_cl100k"],
@@ -146,12 +146,12 @@ class TestBatchAnalysis:
     @pytest.mark.asyncio
     async def test_batch_multilingual_difference(self):
         """English and Japanese should produce different counts for tiktoken."""
-        en_results, _ = await self.service.batch_analyze(
+        en_results, _, _ = await self.service.batch_analyze(
             text=GOLDEN_ENGLISH_TEXT,
             language="en",
             tokenizer_names=["tiktoken_cl100k"],
         )
-        ja_results, _ = await self.service.batch_analyze(
+        ja_results, _, _ = await self.service.batch_analyze(
             text=GOLDEN_JAPANESE_TEXT,
             language="ja",
             tokenizer_names=["tiktoken_cl100k"],
@@ -168,7 +168,7 @@ class TestCacheBypass:
 
     @pytest.mark.asyncio
     async def test_no_cache_still_works(self):
-        results, errors = await self.service.batch_analyze(
+        results, errors, _ = await self.service.batch_analyze(
             text=GOLDEN_ENGLISH_TEXT,
             language="en",
             tokenizer_names=["tiktoken_cl100k"],

@@ -93,6 +93,7 @@ export default function AnalyzePage() {
   const results = analysisResult?.results ?? [];
   const fairness = analysisResult?.fairness ?? [];
   const warnings = analysisResult?.warnings ?? [];
+  const glitches = analysisResult?.glitches ?? [];
 
   const chartData = useMemo(() => toChartData(results), [results]);
   const costData = useMemo(() => toCostData(results), [results]);
@@ -247,7 +248,9 @@ export default function AnalyzePage() {
       </section>
 
       {/* Warnings */}
-      {warnings.length > 0 && <GlitchTokenWarning warnings={warnings} />}
+      {(warnings.length > 0 || glitches.length > 0) && (
+        <GlitchTokenWarning warnings={warnings} glitches={glitches} />
+      )}
 
       {/* Results Section */}
       {(hasResults || loading) && (

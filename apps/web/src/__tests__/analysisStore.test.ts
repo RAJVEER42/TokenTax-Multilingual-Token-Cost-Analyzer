@@ -55,6 +55,7 @@ const mockResult: AnalyzeResponse = {
     },
   ],
   errors: [],
+  glitches: [],
   warnings: ["Test warning"],
   formula_version: "1.0",
   cached: false,
