@@ -70,6 +70,17 @@ cp .env.example .env
 docker compose up --build
 ```
 
+**Environment Variables:**
+
+All environment variables are in `.env.example`. Key required variables:
+
+- `SECRET_KEY` — Generate with `openssl rand -hex 32`
+- `DATABASE_URL` — PostgreSQL connection string
+- `REDIS_URL` — Redis connection string
+- `VITE_API_URL` — Frontend-facing API URL
+
+For detailed documentation, see **[ENV_VARIABLES.md](./ENV_VARIABLES.md)** — covers all variables, where to get them, cloud provider setup (AWS/GCP/Azure), and troubleshooting.
+
 ### Manual Development Setup
 
 ```bash
