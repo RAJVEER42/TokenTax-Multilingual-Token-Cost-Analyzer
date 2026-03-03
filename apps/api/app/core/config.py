@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     # ── Pricing ───────────────────────────────────────────
     PRICING_SNAPSHOT_DIR: str = "data/pricing_snapshots"
 
+    # ── Monitoring ────────────────────────────────────────
+    SENTRY_DSN: str = ""  # Optional — set to enable error tracking
+
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production"

@@ -37,6 +37,10 @@ import type {
   ShareCreateRequest,
   ShareCreateResponse,
   ShareRetrieveResponse,
+  RegisterRequest,
+  LoginRequest,
+  TokenResponse,
+  UserProfile,
 } from "@/types";
 
 // ── Configuration ──────────────────────────────────────
@@ -346,4 +350,57 @@ export async function getShare(
   signal?: AbortSignal,
 ): Promise<ShareRetrieveResponse> {
   return request<ShareRetrieveResponse>(`/share/${shortId}`, { signal });
+}
+
+// ── Auth API ───────────────────────────────────────────
+
+/** POST /auth/register — Create a new account. */
+export async function register(
+  payload: RegisterRequest,
+  signal?: AbortSignal,
+): Promise<TokenResponse> {
+  return request<TokenResponse>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    signal,
+    retries: 0,
+  });
+}
+
+/** POST /auth/login — Authenticate with email & password. */
+export async function login(
+  payload: LoginRequest,
+  signal?: AbortSignal,
+): Promise<TokenResponse> {
+  return request<TokenResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    signal,
+    retries: 0,
+  });
+}
+
+/** POST /auth/refresh — Exchange refresh token for new pair. */
+export async function refreshTokens(
+  refreshToken: string,
+  signal?: AbortSignal,
+): Promise<TokenResponse> {
+  return request<TokenResponse>("/auth/refresh", {
+    method: "POST",
+    body: JSON.stringify({ refresh_token: refreshToken }),
+    signal,
+    retries: 0,
+  });
+}
+
+/** GET /auth/me — Get current user profile (requires Bearer token). */
+export async function getProfile(
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<UserProfile> {
+  return request<UserProfile>("/auth/me", {
+    signal,
+    retries: 0,
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 }

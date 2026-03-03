@@ -189,3 +189,36 @@ export interface TutorialProgress {
   readonly completedSteps: number[];
   readonly startedAt: string;
 }
+
+// ── Auth Types ─────────────────────────────────────────
+
+/** POST /api/v1/auth/register request body. */
+export interface RegisterRequest {
+  readonly email: string;
+  readonly password: string;
+  readonly display_name?: string;
+}
+
+/** POST /api/v1/auth/login request body. */
+export interface LoginRequest {
+  readonly email: string;
+  readonly password: string;
+}
+
+/** JWT token pair returned on login/register/refresh. */
+export interface TokenResponse {
+  readonly access_token: string;
+  readonly refresh_token: string;
+  readonly token_type: string;
+  readonly expires_in: number;
+}
+
+/** User profile (safe fields only — no secrets). */
+export interface UserProfile {
+  readonly id: string;
+  readonly email: string;
+  readonly display_name: string;
+  readonly role: string;
+  readonly is_active: boolean;
+  readonly created_at: string;
+}

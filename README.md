@@ -149,12 +149,37 @@ English · Spanish · French · German · Chinese · Japanese · Korean · Arabi
 ## 🧪 Testing
 
 ```bash
-# Backend (191 tests, ≥90% coverage)
-cd apps/api && python -m pytest tests/ -v
+# Backend (362+ tests, ≥90% coverage)
+cd apps/api && python -m pytest tests/ -v --cov=app
 
-# Frontend (192 tests)
+# Frontend (266+ tests)
 cd apps/web && npm test
 ```
+
+---
+
+## 🔐 Authentication
+
+TokenTax v1.0.0 includes full JWT authentication:
+
+- **Register** — `POST /api/v1/auth/register`
+- **Login** — `POST /api/v1/auth/login`
+- **Token Refresh** — `POST /api/v1/auth/refresh`
+- **Profile** — `GET /api/v1/auth/me` (Bearer token required)
+
+---
+
+## 📊 Monitoring & Observability
+
+| Feature | Technology | Endpoint |
+|---------|-----------|----------|
+| Prometheus Metrics | `prometheus-client` | `GET /api/v1/metrics` |
+| Request Tracing | `X-Request-ID` header | Auto-injected |
+| Error Tracking | Sentry SDK | Optional (`SENTRY_DSN`) |
+| Structured Logging | structlog (JSON) | `stdout` |
+| Dashboards | Grafana | `http://localhost:3001` |
+
+See **[DEPLOYMENT_RUNBOOK.md](./DEPLOYMENT_RUNBOOK.md)** for production deployment guide, incident response procedures, and scaling guidelines.
 
 ---
 

@@ -3,10 +3,10 @@ TokenTax FastAPI Application Entry Point
 
 This is the root application factory. It:
 1. Creates the FastAPI app instance with full OpenAPI metadata
-2. Registers all middleware (CORS, logging, timing)
-3. Registers all routers
+2. Registers all middleware (CORS, GZip, Prometheus, RequestID)
+3. Registers all routers (analysis, auth, health, metadata, share, metrics)
 4. Registers startup/shutdown lifecycle hooks
-5. Wires up structured logging
+5. Wires up structured logging + Sentry error tracking
 
 Design decision: We use lifespan context manager (FastAPI 0.95+)
 instead of deprecated @app.on_event decorators for cleaner async
@@ -25,8 +25,11 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.core.responses import ORJSONResponse
+from app.core.sentry import init_sentry
 from app.db.session import engine
 from app.db.redis import get_redis_client
+from app.middleware.metrics import PrometheusMiddleware
+from app.middleware.request_id import RequestIdMiddleware
 
 logger = structlog.get_logger(__name__)
 
@@ -39,6 +42,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # ── Startup ─────────────────────────────────────────
     configure_logging()
+    init_sentry()
     logger.info("tokentax.startup", version=settings.APP_VERSION, env=settings.APP_ENV)
 
     # Verify DB connectivity
@@ -96,6 +100,12 @@ def create_application() -> FastAPI:
 
     # ── GZip Compression ─────────────────────────────────
     app.add_middleware(GZipMiddleware, minimum_size=500)
+
+    # ── Prometheus Metrics ────────────────────────────────
+    app.add_middleware(PrometheusMiddleware)
+
+    # ── Request ID Tracing ────────────────────────────────
+    app.add_middleware(RequestIdMiddleware)
 
     # ── Routers ───────────────────────────────────────────
     app.include_router(api_router, prefix=settings.API_PREFIX)

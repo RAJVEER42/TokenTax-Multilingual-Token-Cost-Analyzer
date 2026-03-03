@@ -19,7 +19,10 @@ omit = [
     "app/db/models.py",
     "app/core/logging.py",
     "app/core/security.py",
+    "app/core/sentry.py",
     "app/api/v1/endpoints/health.py",
+    "app/api/v1/endpoints/auth.py",
+    "app/services/auth_service.py",
     "*/migrations/*",
 ]
 

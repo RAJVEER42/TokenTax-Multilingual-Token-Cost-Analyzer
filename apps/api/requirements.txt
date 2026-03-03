@@ -2,6 +2,7 @@ fastapi==0.110.0
 uvicorn[standard]==0.27.1
 pydantic==2.6.4
 pydantic-settings==2.2.1
+email-validator==2.1.1
 sqlalchemy==2.0.28
 asyncpg==0.29.0
 alembic==1.13.1
@@ -21,3 +22,4 @@ python-dotenv==1.0.1
 tenacity==8.2.3
 orjson==3.9.15
 prometheus-client==0.20.0
+sentry-sdk[fastapi]==1.40.6
