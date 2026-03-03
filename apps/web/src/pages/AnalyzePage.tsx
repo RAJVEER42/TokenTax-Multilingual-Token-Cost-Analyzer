@@ -1,9 +1,10 @@
 /**
- * AnalyzePage — Main analysis workflow page (Phase 5: Integrated)
+ * AnalyzePage — Main analysis workflow page (Phase 6: Visualization)
  *
  * Wires together all components with production-grade integration:
  *   TextInput → LanguageSelector → [Run Analysis] → ResultsPanel
- *   → ComparisonChart → FairnessScoreCard → GlitchTokenWarning
+ *   → ComparisonChart → FairnessGauge → LanguageHeatmap
+ *   → CostBreakdown → TokenDistributionTreemap → MultilingualTaxScatter
  *
  * Integration features:
  * - Cached fallback banner when API is unreachable
@@ -12,6 +13,7 @@
  * - AbortController cancels stale requests
  * - Loading states on all interactive elements
  * - Results persist across page reload (Zustand persist)
+ * - All chart data computed via pure transforms (not in render)
  */
 
 import { useMemo, useCallback } from "react";
@@ -21,7 +23,7 @@ import { Zap, RotateCcw, RefreshCw, WifiOff, AlertTriangle } from "lucide-react"
 import { useAnalysisStore } from "@/store/analysisStore";
 import { useTokenAnalysis } from "@/hooks/useTokenAnalysis";
 import { fetchLanguages } from "@/services/api";
-import type { ChartDataPoint, LanguageInfo } from "@/types";
+import type { LanguageInfo } from "@/types";
 
 import TextInput from "@/components/TextInput";
 import LanguageSelector from "@/components/LanguageSelector";
@@ -29,6 +31,22 @@ import ResultsPanel from "@/components/ResultsPanel";
 import ComparisonChart from "@/components/ComparisonChart";
 import FairnessScoreCard from "@/components/FairnessScoreCard";
 import GlitchTokenWarning from "@/components/GlitchTokenWarning";
+import VisualizationContainer from "@/components/VisualizationContainer";
+import FairnessGauge from "@/components/FairnessGauge";
+import LanguageHeatmap from "@/components/LanguageHeatmap";
+import CostBreakdown from "@/components/CostBreakdown";
+import TokenDistributionTreemap from "@/components/TokenDistributionTreemap";
+import MultilingualTaxScatter from "@/components/MultilingualTaxScatter";
+
+import {
+  toChartData,
+  toCostData,
+  toHeatmapData,
+  enrichHeatmapWithFairness,
+  toGaugeData,
+  toTreemapData,
+  toScatterData,
+} from "@/lib/transforms";
 
 /** Fallback language list when the API is unreachable. */
 const FALLBACK_LANGUAGES: readonly LanguageInfo[] = [
@@ -76,17 +94,21 @@ export default function AnalyzePage() {
   const fairness = analysisResult?.fairness ?? [];
   const warnings = analysisResult?.warnings ?? [];
 
-  const chartData: readonly ChartDataPoint[] = useMemo(
-    () =>
-      results.map((r) => ({
-        tokenizer: r.tokenizer_name,
-        displayName: r.tokenizer_name.replace(/_/g, " "),
-        tokenCount: r.token_count,
-        efficiency: r.efficiency_ratio,
-        confidence: r.confidence,
-      })),
-    [results],
+  const chartData = useMemo(() => toChartData(results), [results]);
+  const costData = useMemo(() => toCostData(results), [results]);
+  const gaugeData = useMemo(() => toGaugeData(fairness), [fairness]);
+  const treemapData = useMemo(
+    () => toTreemapData(results, fairness),
+    [results, fairness],
   );
+  const scatterData = useMemo(
+    () => toScatterData(results, fairness),
+    [results, fairness],
+  );
+  const heatmapData = useMemo(() => {
+    const base = toHeatmapData(results, selectedLanguage);
+    return enrichHeatmapWithFairness(base, fairness);
+  }, [results, fairness, selectedLanguage]);
 
   const hasResults = analysisResult !== null;
   const canAnalyze = inputText.trim().length > 0 && !loading;
@@ -233,21 +255,75 @@ export default function AnalyzePage() {
           {/* Results table */}
           <ResultsPanel results={results} loading={loading} />
 
-          {/* Chart */}
+          {/* Token Count Comparison Chart */}
           {chartData.length > 0 && (
-            <div className="glass rounded-xl p-6">
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">
-                Token Count Comparison
-              </h2>
+            <VisualizationContainer
+              title="Token Count Comparison"
+              subtitle="Bar height encodes token count. Color encodes confidence level."
+            >
               <ComparisonChart data={chartData} height={320} />
-            </div>
+            </VisualizationContainer>
           )}
 
-          {/* Fairness scores */}
+          {/* Cost Breakdown */}
+          {costData.length > 0 && (
+            <VisualizationContainer
+              title="Cost Breakdown"
+              subtitle="Estimated cost per tokenizer based on published pricing."
+            >
+              <CostBreakdown data={costData} />
+            </VisualizationContainer>
+          )}
+
+          {/* Fairness Gauges */}
+          {gaugeData.length > 0 && (
+            <VisualizationContainer
+              title="Fairness Gauges"
+              subtitle="MAD-normalized fairness score per tokenizer (0–100)."
+            >
+              <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4 justify-items-center">
+                {gaugeData.map((g) => (
+                  <FairnessGauge key={g.tokenizer} data={g} />
+                ))}
+              </div>
+            </VisualizationContainer>
+          )}
+
+          {/* Language Heatmap */}
+          {heatmapData.length > 0 && (
+            <VisualizationContainer
+              title="Language Token Ratio Heatmap"
+              subtitle="Token count relative to English baseline per tokenizer."
+            >
+              <LanguageHeatmap data={heatmapData} language={selectedLanguage} />
+            </VisualizationContainer>
+          )}
+
+          {/* Token Distribution Treemap */}
+          {treemapData.length > 0 && (
+            <VisualizationContainer
+              title="Token Distribution"
+              subtitle="Area encodes token count. Color encodes fairness threshold."
+            >
+              <TokenDistributionTreemap data={treemapData} height={280} />
+            </VisualizationContainer>
+          )}
+
+          {/* Multilingual Tax Scatter */}
+          {scatterData.length > 0 && (
+            <VisualizationContainer
+              title="Multilingual Tax Scatter"
+              subtitle="Token ratio vs fairness score, grouped by language family."
+            >
+              <MultilingualTaxScatter data={scatterData} height={320} />
+            </VisualizationContainer>
+          )}
+
+          {/* Fairness Score Cards */}
           {fairness.length > 0 && (
             <div>
               <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">
-                Fairness Scores
+                Fairness Score Details
               </h2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {fairness.map((f) => (

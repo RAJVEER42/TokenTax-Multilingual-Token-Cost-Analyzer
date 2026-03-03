@@ -1,20 +1,19 @@
 /**
  * ComparisonChart — Bar chart comparing token counts across tokenizers.
  *
- * Boundary rationale:
- * - Purely presentational: accepts pre-shaped data, renders a chart.
- * - Does NOT call APIs or compute data — parent transforms API response.
- * - Separated from ResultsPanel: charts serve pattern recognition,
- *   tables serve precision lookup. Different cognitive purposes.
+ * Why this visualization:
+ * - Relative comparison reveals which tokenizers are more expensive
+ * - Sorted by token count (descending) — most expensive leads
+ * - Bar height directly encodes token count (no silent normalization)
+ * - Color encodes confidence level (exact vs estimated)
  *
- * Why Recharts over D3:
- * - Recharts is React-native (JSX components, not imperative DOM manipulation)
- * - D3 requires manual lifecycle management that fights React's model
- * - Recharts has built-in responsive containers and tooltips
- * - For bar/line charts, Recharts achieves 90% of D3's output with 10% of code
- * - D3 is appropriate when you need custom force graphs or geographic maps
+ * Why purely presentational:
+ * - Accepts pre-sorted, pre-shaped data from transforms.ts
+ * - No API calls, no store access, no computation in render
+ * - Parent memoizes data via useMemo → referential stability
  */
 
+import { memo, useCallback } from "react";
 import {
   BarChart,
   Bar,
@@ -26,22 +25,40 @@ import {
   Cell,
 } from "recharts";
 import type { ChartDataPoint } from "@/types";
+import { CHART_COLORS, getPricing, calculateCost, COST_DECIMAL_PLACES } from "@/lib/constants";
 
 interface ComparisonChartProps {
-  /** Pre-shaped data points for the chart. */
   readonly data: readonly ChartDataPoint[];
-  /** Chart height in pixels. */
   readonly height?: number;
-}
-
-/** Color map: EXACT tokenizers get brand blue, ESTIMATED gets amber. */
-function getBarColor(confidence: string): string {
-  return confidence === "EXACT" ? "#6366f1" : "#f59e0b";
 }
 
 interface TooltipPayloadEntry {
   payload: ChartDataPoint;
   value: number;
+}
+
+function TooltipRow({
+  label,
+  value,
+  valueClass = "text-slate-200",
+  sub,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly valueClass?: string;
+  readonly sub?: string;
+}) {
+  return (
+    <div className="flex justify-between gap-6">
+      <span className="text-slate-400">{label}</span>
+      <span className="text-right">
+        <span className={`font-mono font-semibold ${valueClass}`}>{value}</span>
+        {sub != null && (
+          <span className="block text-[10px] text-slate-500">{sub}</span>
+        )}
+      </span>
+    </div>
+  );
 }
 
 function CustomTooltip({
@@ -55,68 +72,59 @@ function CustomTooltip({
 
   const entry = payload[0];
   if (!entry) return null;
-  const data = entry.payload;
+  const d = entry.payload;
+
+  const pricing = getPricing(d.tokenizer);
+  const cost = pricing ? calculateCost(d.tokenCount, pricing.costPerMToken) : null;
 
   return (
-    <div className="glass rounded-lg px-4 py-3 shadow-xl border border-white/10">
-      <p className="text-sm font-semibold text-slate-200">
-        {data.displayName}
-      </p>
+    <div className="rounded-lg bg-slate-900/95 px-4 py-3 shadow-xl border border-white/10 backdrop-blur-sm">
+      <p className="text-sm font-semibold text-slate-200">{d.displayName}</p>
       <div className="mt-2 space-y-1 text-xs">
-        <div className="flex justify-between gap-6">
-          <span className="text-slate-400">Token Count</span>
-          <span className="font-mono font-semibold text-slate-200">
-            {data.tokenCount.toLocaleString()}
-          </span>
-        </div>
-        <div className="flex justify-between gap-6">
-          <span className="text-slate-400">Efficiency</span>
-          <span className="font-mono text-slate-300">
-            {data.efficiency.toFixed(4)}
-          </span>
-        </div>
-        <div className="flex justify-between gap-6">
-          <span className="text-slate-400">Confidence</span>
-          <span
-            className={
-              data.confidence === "EXACT"
-                ? "text-emerald-400"
-                : "text-amber-400"
-            }
-          >
-            {data.confidence}
-          </span>
-        </div>
+        <TooltipRow label="Token Count" value={d.tokenCount.toLocaleString()} />
+        <TooltipRow label="Efficiency" value={d.efficiency.toFixed(4)} />
+        <TooltipRow
+          label="Confidence"
+          value={d.confidence}
+          valueClass={d.confidence === "EXACT" ? "text-emerald-400" : "text-amber-400"}
+        />
+        {cost !== null && (
+          <TooltipRow
+            label="Est. Cost"
+            value={`$${cost.toFixed(COST_DECIMAL_PLACES)}`}
+            sub={`$${pricing!.costPerMToken}/1M tokens`}
+          />
+        )}
       </div>
+      <p className="mt-2 text-[10px] text-slate-600">
+        Formula: tokens ÷ 1,000,000 × cost/M
+      </p>
     </div>
   );
 }
 
-export default function ComparisonChart({
-  data,
-  height = 320,
-}: ComparisonChartProps) {
+function getBarColor(confidence: string): string {
+  return confidence === "EXACT" ? CHART_COLORS.exact : CHART_COLORS.estimated;
+}
+
+function ComparisonChartInner({ data, height = 320 }: ComparisonChartProps) {
   if (data.length === 0) return null;
 
-  return (
-    <div className="glass rounded-xl p-6">
-      <div className="mb-4">
-        <h3 className="text-sm font-semibold text-slate-200">
-          Token Count Comparison
-        </h3>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Tokens produced by each tokenizer for the same input
-        </p>
-      </div>
+  const formatTick = useCallback((v: number) => {
+    if (v >= 1000) return `${(v / 1000).toFixed(0)}k`;
+    return String(v);
+  }, []);
 
+  return (
+    <>
       {/* Legend */}
       <div className="flex items-center gap-4 mb-4 text-xs text-slate-400">
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-brand-500" />
+          <span className="h-2.5 w-2.5 rounded-sm" style={{ background: CHART_COLORS.exact }} />
           Exact
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />
+          <span className="h-2.5 w-2.5 rounded-sm" style={{ background: CHART_COLORS.estimated }} />
           Estimated
         </span>
       </div>
@@ -129,20 +137,32 @@ export default function ComparisonChart({
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="rgba(255,255,255,0.06)"
+            stroke={CHART_COLORS.grid}
             vertical={false}
           />
           <XAxis
-            dataKey="tokenizer"
-            tick={{ fill: "#94a3b8", fontSize: 11 }}
-            axisLine={{ stroke: "rgba(255,255,255,0.08)" }}
+            dataKey="displayName"
+            tick={{ fill: CHART_COLORS.tick, fontSize: 11 }}
+            axisLine={{ stroke: CHART_COLORS.axis }}
             tickLine={false}
+            interval={0}
+            angle={data.length > 3 ? -20 : 0}
+            textAnchor={data.length > 3 ? "end" : "middle"}
+            height={data.length > 3 ? 60 : 30}
           />
           <YAxis
-            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            tick={{ fill: CHART_COLORS.tick, fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            width={50}
+            width={55}
+            tickFormatter={formatTick}
+            label={{
+              value: "Token Count",
+              angle: -90,
+              position: "insideLeft",
+              offset: 10,
+              style: { fill: "#64748b", fontSize: 10 },
+            }}
           />
           <Tooltip
             content={<CustomTooltip />}
@@ -150,14 +170,14 @@ export default function ComparisonChart({
           />
           <Bar dataKey="tokenCount" radius={[4, 4, 0, 0]} maxBarSize={60}>
             {data.map((entry) => (
-              <Cell
-                key={entry.tokenizer}
-                fill={getBarColor(entry.confidence)}
-              />
+              <Cell key={entry.tokenizer} fill={getBarColor(entry.confidence)} />
             ))}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </>
   );
 }
+
+const ComparisonChart = memo(ComparisonChartInner);
+export default ComparisonChart;
