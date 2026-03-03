@@ -115,7 +115,7 @@ export default function Sidebar() {
       <div className="px-5 py-4 border-t border-white/6">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[11px] text-slate-500">v0.8.0 · Phase 8</span>
+          <span className="text-[11px] text-slate-500">v0.9.0 · Phase 9</span>
         </div>
       </div>
     </aside>

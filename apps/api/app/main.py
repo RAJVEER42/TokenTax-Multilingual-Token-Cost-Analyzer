@@ -19,6 +19,7 @@ from typing import AsyncGenerator
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import settings
@@ -92,6 +93,9 @@ def create_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # ── GZip Compression ─────────────────────────────────
+    app.add_middleware(GZipMiddleware, minimum_size=500)
 
     # ── Routers ───────────────────────────────────────────
     app.include_router(api_router, prefix=settings.API_PREFIX)

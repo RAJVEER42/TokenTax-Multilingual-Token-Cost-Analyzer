@@ -8,7 +8,7 @@ services:
     environment:
       - APP_ENV=development
       - APP_NAME=TokenTax
-      - APP_VERSION=0.8.0
+      - APP_VERSION=0.9.0
       - DEBUG=true
       - LOG_LEVEL=INFO
       - SECRET_KEY=dev-only-change-in-production-32-byte-hex
