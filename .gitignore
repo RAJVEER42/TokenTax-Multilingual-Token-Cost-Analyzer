@@ -9,6 +9,7 @@ internal_phase_docs/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # Python
 __pycache__/

@@ -21,8 +21,9 @@ RUN npm run build
 # For development/compose we might override this with 'npm run dev'
 FROM nginx:alpine
 
-# Copy custom nginx config if we had one for client-side routing
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
+# NOTE: In production, use Dockerfile.prod which copies infra/nginx.conf
+# with SPA routing, gzip, security headers, and API proxy.
+# The dev Dockerfile uses default nginx config (sufficient for local dev).
 
 # Copy static assets
 COPY --from=builder /app/dist /usr/share/nginx/html

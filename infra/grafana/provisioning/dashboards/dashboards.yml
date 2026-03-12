@@ -1,0 +1,24 @@
+# ============================================================
+# Grafana Dashboard Provisioning
+# ============================================================
+#
+# Auto-loads dashboard JSON files from /var/lib/grafana/dashboards
+# on Grafana startup. Dashboards are read-only (managed by code).
+#
+# Docs: https://grafana.com/docs/grafana/latest/administration/provisioning/#dashboards
+# ============================================================
+
+apiVersion: 1
+
+providers:
+  - name: "TokenTax"
+    orgId: 1
+    folder: "TokenTax"
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

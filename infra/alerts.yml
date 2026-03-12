@@ -1,0 +1,195 @@
+# ============================================================
+# TokenTax — Prometheus Alert Rules
+# ============================================================
+#
+# Alert severity levels:
+#   critical — Pages on-call, requires immediate action
+#   warning  — Notify team channel, investigate within 1 hour
+#   info     — Dashboard annotation, investigate during business hours
+#
+# Naming convention: TokenTax<Component><Condition>
+# ============================================================
+
+groups:
+  # ── API Health ────────────────────────────────────────
+  - name: tokentax_api_health
+    rules:
+      - alert: TokenTaxAPIDown
+        expr: up{job="tokentax-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: tokentax-api
+        annotations:
+          summary: "TokenTax API is unreachable"
+          description: "Prometheus cannot scrape the TokenTax API metrics endpoint for more than 1 minute. The service may be down or unresponsive."
+          runbook: "https://github.com/your-org/tokentax/blob/main/DEPLOYMENT_RUNBOOK.md#83-runbook-api-unreachable"
+
+      - alert: TokenTaxHealthCheckFailing
+        expr: |
+          probe_success{job="tokentax-api"} == 0
+          or
+          count(up{job="tokentax-api"} == 0) > 0
+        for: 3m
+        labels:
+          severity: critical
+          service: tokentax-api
+        annotations:
+          summary: "TokenTax health check failing for 3+ minutes"
+          description: "The API health check endpoint has been failing for more than 3 consecutive minutes. Auto-restart may be needed."
+
+  # ── HTTP Error Rates ──────────────────────────────────
+  - name: tokentax_http_errors
+    rules:
+      - alert: TokenTaxHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="tokentax-api", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="tokentax-api"}[5m]))
+          ) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+          service: tokentax-api
+        annotations:
+          summary: "High 5xx error rate (>5%) for 5 minutes"
+          description: "The API is returning more than 5% server errors over the last 5 minutes. Current rate: {{ $value | printf \"%.1f\" }}%."
+          runbook: "https://github.com/your-org/tokentax/blob/main/DEPLOYMENT_RUNBOOK.md#6-rollback-procedures"
+
+      - alert: TokenTaxElevatedErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="tokentax-api", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="tokentax-api"}[5m]))
+          ) * 100 > 1
+        for: 15m
+        labels:
+          severity: warning
+          service: tokentax-api
+        annotations:
+          summary: "Elevated 5xx error rate (>1%) for 15 minutes"
+          description: "The API has a sustained error rate above 1% for 15 minutes. Current rate: {{ $value | printf \"%.1f\" }}%."
+
+      - alert: TokenTaxHigh4xxRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="tokentax-api", status=~"4.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="tokentax-api"}[5m]))
+          ) * 100 > 25
+        for: 10m
+        labels:
+          severity: warning
+          service: tokentax-api
+        annotations:
+          summary: "High 4xx client error rate (>25%) for 10 minutes"
+          description: "Unusually high client error rate may indicate a broken frontend deployment or API contract change. Rate: {{ $value | printf \"%.1f\" }}%."
+
+  # ── Latency ──────────────────────────────────────────
+  - name: tokentax_latency
+    rules:
+      - alert: TokenTaxHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="tokentax-api"}[5m])) by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: tokentax-api
+        annotations:
+          summary: "API p95 latency exceeds 2 seconds"
+          description: "The 95th percentile request latency has been above 2 seconds for 5 minutes. Current p95: {{ $value | printf \"%.2f\" }}s."
+
+      - alert: TokenTaxHighLatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="tokentax-api"}[5m])) by (le)
+          ) > 5
+        for: 5m
+        labels:
+          severity: critical
+          service: tokentax-api
+        annotations:
+          summary: "API p99 latency exceeds 5 seconds"
+          description: "The 99th percentile request latency has been above 5 seconds for 5 minutes. This may indicate resource exhaustion or a downstream dependency issue."
+
+      - alert: TokenTaxAnalyzeEndpointSlow
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="tokentax-api", path="/api/v1/analyze"}[5m])) by (le)
+          ) > 3
+        for: 5m
+        labels:
+          severity: warning
+          service: tokentax-api
+        annotations:
+          summary: "Analyze endpoint p95 latency exceeds 3 seconds"
+          description: "The core /analyze endpoint is slow. This is the primary user-facing feature. p95: {{ $value | printf \"%.2f\" }}s."
+
+  # ── Request Volume ────────────────────────────────────
+  - name: tokentax_traffic
+    rules:
+      - alert: TokenTaxNoTraffic
+        expr: |
+          sum(rate(http_requests_total{job="tokentax-api"}[10m])) == 0
+        for: 15m
+        labels:
+          severity: warning
+          service: tokentax-api
+        annotations:
+          summary: "No API traffic for 15 minutes"
+          description: "The API has received zero requests in the last 15 minutes. This may indicate a networking issue, DNS failure, or load balancer misconfiguration."
+
+      - alert: TokenTaxTrafficSpike
+        expr: |
+          sum(rate(http_requests_total{job="tokentax-api"}[5m]))
+          >
+          3 * sum(rate(http_requests_total{job="tokentax-api"}[1h] offset 5m))
+        for: 5m
+        labels:
+          severity: warning
+          service: tokentax-api
+        annotations:
+          summary: "Traffic spike detected (3× normal)"
+          description: "Request rate is 3× the average from the last hour. This may be organic growth, a bot attack, or a misconfigured client."
+
+  # ── Concurrent Requests ───────────────────────────────
+  - name: tokentax_concurrency
+    rules:
+      - alert: TokenTaxHighConcurrency
+        expr: |
+          sum(http_requests_in_progress{job="tokentax-api"}) > 50
+        for: 5m
+        labels:
+          severity: warning
+          service: tokentax-api
+        annotations:
+          summary: "High number of in-progress requests (>50)"
+          description: "There are {{ $value }} requests currently being processed. This may indicate slow downstream dependencies or insufficient worker capacity."
+
+  # ── Infrastructure ────────────────────────────────────
+  - name: tokentax_infrastructure
+    rules:
+      - alert: TokenTaxPrometheusTargetMissing
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: prometheus
+        annotations:
+          summary: "Prometheus target {{ $labels.instance }} is down"
+          description: "A monitored target has been unreachable for 5 minutes."
+
+      - alert: TokenTaxPrometheusTSDBFull
+        expr: |
+          prometheus_tsdb_storage_blocks_bytes / (5 * 1024 * 1024 * 1024) * 100 > 80
+        for: 30m
+        labels:
+          severity: warning
+          service: prometheus
+        annotations:
+          summary: "Prometheus TSDB storage >80% of 5GB limit"
+          description: "Prometheus storage is {{ $value | printf \"%.0f\" }}% of the configured 5GB limit. Consider increasing retention size or reducing metric cardinality."

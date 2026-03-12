@@ -1,0 +1,299 @@
+# ============================================================
+# TokenTax — Production Docker Compose
+# ============================================================
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# This file defines the PRODUCTION deployment topology:
+# - Gunicorn + Uvicorn workers (not --reload)
+# - Nginx serving pre-built static assets
+# - Managed resource limits per container
+# - No source code volume mounts (immutable images)
+# - Health checks gating service readiness
+# - Prometheus + Grafana monitoring stack
+#
+# Secrets are injected via environment variables (never in this file).
+# Use .env.production or your cloud provider's secret manager.
+# ============================================================
+
+services:
+  # ── API (FastAPI + Gunicorn) ──────────────────────────
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.prod
+    container_name: tokentax-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - APP_ENV=production
+      - APP_NAME=TokenTax
+      - APP_VERSION=1.0.0
+      - DEBUG=false
+      - LOG_LEVEL=WARNING
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+      - REDIS_URL=${REDIS_URL:?REDIS_URL is required}
+      - CORS_ORIGINS_STR=${CORS_ORIGINS_STR:-https://tokentax.io}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - TOKENIZER_CACHE_TTL=86400
+      - DEFAULT_TOKENIZER=tiktoken
+      - TOKENIZERS_PARALLELISM=false
+      - REDIS_TTL_SECONDS=3600
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/ping"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - tokentax-net
+
+  # ── Web (Nginx + static SPA) ─────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.prod
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api/v1}
+    container_name: tokentax-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-80}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    networks:
+      - tokentax-net
+
+  # ── PostgreSQL 15 ─────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: tokentax-db
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tokentax}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-tokentax}
+      # Tune for production workload
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=768MB
+        -c work_mem=16MB
+        -c maintenance_work_mem=128MB
+        -c max_connections=100
+        -c log_min_duration_statement=500
+        -c log_statement=ddl
+        -c ssl=off
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - postgres_backups:/backups
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tokentax} -d ${POSTGRES_DB:-tokentax}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "30m"
+        max-file: "3"
+    networks:
+      - tokentax-net
+
+  # ── Redis 7 ───────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: tokentax-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: >
+      redis-server
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+        --appendonly yes
+        --appendfsync everysec
+        --save 900 1
+        --save 300 10
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - tokentax-net
+
+  # ── Prometheus (Metrics Collection) ───────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: tokentax-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--storage.tsdb.retention.size=5GB"
+      - "--web.enable-lifecycle"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - tokentax-net
+
+  # ── Grafana (Dashboards) ──────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: tokentax-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
+      GF_INSTALL_PLUGINS: grafana-clock-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    depends_on:
+      - prometheus
+    networks:
+      - tokentax-net
+
+  # ── DB Backup (Scheduled via cron in container) ───────
+  db-backup:
+    image: postgres:15-alpine
+    container_name: tokentax-db-backup
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-tokentax}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      PGDATABASE: ${POSTGRES_DB:-tokentax}
+    entrypoint: /bin/sh
+    command: >
+      -c "while true; do
+        TIMESTAMP=$$(date +%Y%m%d_%H%M%S);
+        echo \"[$$TIMESTAMP] Starting backup...\";
+        pg_dump -Fc > /backups/tokentax_$$TIMESTAMP.dump;
+        echo \"[$$TIMESTAMP] Backup complete.\";
+        # Keep only last 7 daily backups
+        ls -1t /backups/tokentax_*.dump | tail -n +8 | xargs -r rm;
+        echo \"Sleeping 24h until next backup...\";
+        sleep 86400;
+      done"
+    volumes:
+      - postgres_backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    networks:
+      - tokentax-net
+
+volumes:
+  postgres_data:
+    driver: local
+  postgres_backups:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  tokentax-net:
+    driver: bridge
+    name: tokentax-network

@@ -1,0 +1,114 @@
+# ============================================================
+# TokenTax API — Production Multi-Stage Dockerfile
+# ============================================================
+#
+# Stage 1 (builder):  Install ALL dependencies + compile wheels
+# Stage 2 (deps):     Extract only production wheels (no dev tools)
+# Stage 3 (runtime):  Minimal image — Gunicorn + Uvicorn workers
+#
+# Benefits:
+# - Final image ~200MB (vs ~1GB with build tools)
+# - No gcc, make, or dev headers in production (reduced attack surface)
+# - Gunicorn manages Uvicorn workers (graceful shutdown, preloading)
+# - Non-root user (CIS Docker Benchmark compliant)
+# ============================================================
+
+# ── Stage 1: Builder ─────────────────────────────────────
+# Installs system build tools + compiles all Python wheels.
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+# System deps needed to compile native extensions (asyncpg, bcrypt, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt ./
+
+# Install into a dedicated prefix so we can cleanly copy to runtime
+RUN pip install --prefix=/install --no-cache-dir --no-warn-script-location \
+    -r requirements.txt
+
+# Also install gunicorn for production process management
+RUN pip install --prefix=/install --no-cache-dir --no-warn-script-location \
+    gunicorn==21.2.0
+
+
+# ── Stage 2: Dependency Optimizer ────────────────────────
+# Prune unnecessary files from the install prefix to shrink image.
+FROM python:3.11-slim AS deps
+
+COPY --from=builder /install /install
+
+# Remove __pycache__, .pyc, test dirs, type stubs from installed packages
+RUN find /install -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true \
+    && find /install -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true \
+    && find /install -type f -name "*.pyc" -delete 2>/dev/null || true
+
+
+# ── Stage 3: Runtime ─────────────────────────────────────
+# Minimal production image — no build tools, no dev dependencies.
+FROM python:3.11-slim AS runtime
+
+LABEL maintainer="TokenTax DevOps <devops@tokentax.io>"
+LABEL version="1.0.0"
+LABEL description="TokenTax API — Multilingual Token Cost Analyzer"
+
+# Security: non-root user
+RUN groupadd --gid 1001 appuser \
+    && useradd --uid 1001 --gid appuser --shell /bin/bash --create-home appuser
+
+WORKDIR /app
+
+# Runtime-only system deps (libpq for asyncpg, curl for healthcheck)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy optimized Python packages from deps stage
+COPY --from=deps /install /usr/local
+
+# Copy application code (excluding tests, docs, dev files via .dockerignore)
+COPY --chown=appuser:appuser . .
+
+# Remove test files and dev artifacts from the final image
+RUN rm -rf tests/ requirements-dev.txt pyproject.toml *.md .ruff_cache .pytest_cache \
+    __pycache__ .mypy_cache htmlcov .coverage
+
+# Switch to non-root
+USER appuser
+
+EXPOSE 8000
+
+# Health check: lightweight ping endpoint (no DB/Redis dependency)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/health/ping || exit 1
+
+# Use tini as PID 1 for proper signal handling (SIGTERM → graceful shutdown)
+ENTRYPOINT ["tini", "--"]
+
+# Gunicorn with Uvicorn workers:
+# - --workers 4:             Match 2×CPU cores (2 vCPU recommended)
+# - --worker-class:          Uvicorn's async worker for FastAPI
+# - --timeout 120:           Kill workers that hang >120s
+# - --graceful-timeout 30:   30s to finish in-flight requests on shutdown
+# - --max-requests 2000:     Restart workers after 2000 requests (prevent memory leaks)
+# - --max-requests-jitter:   Stagger restarts to avoid thundering herd
+# - --access-logfile -:      Log to stdout (for Docker log driver)
+# - --preload:               Load app before forking (shared memory, faster startup)
+CMD ["gunicorn", "app.main:app", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "4", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--max-requests", "2000", \
+     "--max-requests-jitter", "200", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--preload"]

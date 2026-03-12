@@ -1,0 +1,43 @@
+# TokenTax Web — Docker Build Exclusions
+
+# Version control
+.git
+.gitignore
+
+# Dependencies (installed fresh in Docker)
+node_modules
+
+# Build output (built inside Docker)
+dist
+build
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Docker files
+Dockerfile*
+.dockerignore
+docker-compose*
+
+# Test files
+src/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+vitest.config.ts
+coverage
+
+# Documentation
+*.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Env files (injected at build time via ARG)
+.env*
+!.env.example

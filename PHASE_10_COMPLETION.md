@@ -203,7 +203,38 @@ README.md                      — Auth & Monitoring sections
 8. ✅ Comprehensive deployment runbook
 9. ✅ Environment variables fully documented
 10. ✅ Zero TypeScript errors, zero lint errors
+11. ✅ Production multi-stage Dockerfiles (API: Gunicorn+tini, Web: Nginx)
+12. ✅ CI/CD pipeline via GitHub Actions (6 stages: test → build → push → deploy → smoke → alert)
+13. ✅ Production Docker Compose with 7 services + automated DB backup
+14. ✅ Prometheus alert rules (13 alerts: error rate, latency, health, traffic, infrastructure)
+15. ✅ Grafana auto-provisioning (datasource + API overview dashboard)
+16. ✅ Standalone smoke test script (`infra/scripts/smoke-test.sh`)
+17. ✅ DNS/SSL/CDN configuration documented
+18. ✅ Database backup strategy (daily, 7-day retention, off-site ready)
+19. ✅ Rollback procedures documented
+20. ✅ Cloud provider evaluation (DigitalOcean recommended, $59/mo)
+21. ✅ Secret management with `${VAR:?error}` enforcement
 
 ---
 
-**TokenTax v1.0.0 is production-ready.** 🎉
+## 🏗️ Deployment Infrastructure Files
+
+```
+.github/workflows/deploy.yml                          — CI/CD deploy pipeline
+docker-compose.prod.yml                                — Production compose (7 services)
+.env.production.example                                — Production env template
+apps/api/Dockerfile.prod                               — 3-stage API image (Gunicorn + tini)
+apps/api/.dockerignore                                 — API build exclusions
+apps/web/Dockerfile.prod                               — 3-stage Web image (Nginx)
+apps/web/.dockerignore                                 — Web build exclusions
+infra/alerts.yml                                       — Prometheus alert rules (13 alerts)
+infra/prometheus.yml                                   — Updated with alert rules + prod labels
+infra/scripts/smoke-test.sh                            — Standalone smoke test suite
+infra/grafana/provisioning/datasources/prometheus.yml  — Grafana datasource auto-config
+infra/grafana/provisioning/dashboards/dashboards.yml   — Grafana dashboard provider
+infra/grafana/dashboards/api-overview.json             — Pre-built API overview dashboard
+```
+
+---
+
+**TokenTax v1.0.0 is production-ready and fully deployable.** 🎉
